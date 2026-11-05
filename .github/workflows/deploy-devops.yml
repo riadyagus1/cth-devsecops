@@ -6,31 +6,57 @@ on:
       - main
 
 jobs:
-  lint:
-    name: Code Quality Check (Pylint)
+  quality-check:
+    name: Code Quality & Syntax Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Setup Lingkungan Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pylint
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      # Setup Lingkungan PHP
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
 
-      - name: Run Pylint
+      # Cek Kode Python (Pylint)
+      - name: Check Python Code (Pylint)
         run: |
-          pylint $(git ls-files '*.py') --fail-under=8
+          PY_FILES=$(git ls-files '*.py')
+          if [ -n "$PY_FILES" ]; then
+            echo "File Python terdeteksi. Menyiapkan Pylint..."
+            python -m pip install --upgrade pip
+            pip install pylint
+            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+            
+            echo "Menjalankan Pylint (minimal skor 8)..."
+            pylint $PY_FILES --fail-under=8
+          else
+            echo "Tidak ada file Python (*.py) dalam repositori. Dilewati."
+          fi
+
+      # Cek Kode PHP (Lint Syntax)
+      - name: Check PHP Syntax
+        run: |
+          PHP_FILES=$(git ls-files '*.php')
+          if [ -n "$PHP_FILES" ]; then
+            echo "File PHP terdeteksi. Memeriksa sintaks PHP..."
+            for file in $PHP_FILES; do
+              php -l "$file" || exit 1
+            done
+          else
+            echo "Tidak ada file PHP (*.php) dalam repositori. Dilewati."
+          fi
 
   deploy:
     name: Deploy to Server
-    needs: lint
+    needs: quality-check
     runs-on: ubuntu-latest
     steps:
       - name: Execute deployment script over SSH
